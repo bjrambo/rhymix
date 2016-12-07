@@ -179,12 +179,9 @@ class commentController extends comment
 		$obj->before_point = ($point < 0) ? $oComment->get('blamed_count') : $oComment->get('voted_count');
 		$obj->after_point = ($point < 0) ? $args->blamed_count : $args->voted_count;
 		$obj->cancel = 1;
-		$trigger_output = ModuleHandler::triggerCall('comment.updateVotedCountCancel', 'after', $obj);
-		if(!$trigger_output->toBool())
-		{
-			$oDB->rollback();
-			return $trigger_output;
-		}
+		
+		ModuleHandler::triggerCall('comment.updateVotedCountCancel', 'after', $obj);
+		$oDB->commit();
 		return $output;
 	}
 
@@ -207,7 +204,7 @@ class commentController extends comment
 
 		// if an user select message from options, message would be the option.
 		$message_option = strval(Context::get('message_option'));
-		$improper_comment_reasons = Context::getLang('improper_comment_reasons');
+		$improper_comment_reasons = lang('improper_comment_reasons');
 		$declare_message = ($message_option !== 'others' && isset($improper_comment_reasons[$message_option]))?
 			$improper_comment_reasons[$message_option] : trim(Context::get('declare_message'));
 
@@ -578,15 +575,7 @@ class commentController extends comment
 		}
 
 		// call a trigger(after)
-		if($output->toBool())
-		{
-			$trigger_output = ModuleHandler::triggerCall('comment.insertComment', 'after', $obj);
-			if(!$trigger_output->toBool())
-			{
-				$oDB->rollback();
-				return $trigger_output;
-			}
-		}
+		ModuleHandler::triggerCall('comment.insertComment', 'after', $obj);
 
 		// commit
 		$oDB->commit();
@@ -594,7 +583,7 @@ class commentController extends comment
 		if(!$manual_inserted)
 		{
 			// send a message if notify_message option in enabled in the original article
-			$oDocument->notify(Context::getLang('comment'), $obj->content);
+			$oDocument->notify(lang('comment'), $obj->content);
 
 			// send a message if notify_message option in enabled in the original comment
 			if($obj->parent_srl)
@@ -602,7 +591,7 @@ class commentController extends comment
 				$oParent = $oCommentModel->getComment($obj->parent_srl);
 				if($oParent->get('member_srl') != $oDocument->get('member_srl'))
 				{
-					$oParent->notify(Context::getLang('comment'), $obj->content);
+					$oParent->notify(lang('comment'), $obj->content);
 				}
 			}
 		}
@@ -829,9 +818,9 @@ class commentController extends comment
 		}
 
 		// set modifier's information if logged-in and posting author and modifier are matched.
+		$logged_info = Context::get('logged_info');
 		if(Context::get('is_logged'))
 		{
-			$logged_info = Context::get('logged_info');
 			if($source_obj->member_srl == $logged_info->member_srl)
 			{
 				$obj->member_srl = $logged_info->member_srl;
@@ -905,15 +894,7 @@ class commentController extends comment
 		}
 
 		// call a trigger (after)
-		if($output->toBool())
-		{
-			$trigger_output = ModuleHandler::triggerCall('comment.updateComment', 'after', $obj);
-			if(!$trigger_output->toBool())
-			{
-				$oDB->rollback();
-				return $trigger_output;
-			}
-		}
+		ModuleHandler::triggerCall('comment.updateComment', 'after', $obj);
 
 		// commit
 		$oDB->commit();
@@ -924,13 +905,74 @@ class commentController extends comment
 	}
 
 	/**
+	 * Fix comment the delete comment message
+	 * @param object $obj
+	 * @param bool $is_admin
+	 * @return object
+	 */
+	function updateCommentByDelete($obj, $is_admin = FALSE)
+	{
+		$logged_info = Context::get('logged_info');
+
+		// begin transaction
+		$oDB = DB::getInstance();
+		$oDB->begin();
+
+		// If the case manager to delete comments, it indicated that the administrator deleted.
+		if($is_admin === true && $obj->member_srl !== $logged_info->member_srl)
+		{
+			$obj->content = lang('msg_admin_deleted_comment');
+			$obj->status = 8;
+		}
+		else
+		{
+			$obj->content = lang('msg_deleted_comment');
+		}
+		$obj->member_srl = 0;
+		$output = executeQuery('comment.updateCommentByDelete', $obj);
+		if(!$output->toBool())
+		{
+			$oDB->rollback();
+			return $output;
+		}
+
+		// call a trigger by delete (after)
+		ModuleHandler::triggerCall('comment.updateCommentByDelete', 'after', $obj);
+
+		// update the number of comments
+		$oCommentModel = getModel('comment');
+		$comment_count = $oCommentModel->getCommentCount($obj->document_srl);
+		// only document is exists
+		if(isset($comment_count))
+		{
+			// create the controller object of the document
+			$oDocumentController = getController('document');
+
+			// update comment count of the article posting
+			$output = $oDocumentController->updateCommentCount($obj->document_srl, $comment_count, NULL, FALSE);
+			if(!$output->toBool())
+			{
+				$oDB->rollback();
+				return $output;
+			}
+		}
+
+		$oDB->commit();
+
+		$output->add('document_srl', $obj->document_srl);
+
+		return $output;
+	}
+
+	/**
 	 * Delete comment
 	 * @param int $comment_srl
 	 * @param bool $is_admin
 	 * @param bool $isMoveToTrash
+	 * @param object $childs
 	 * @return object
 	 */
-	function deleteComment($comment_srl, $is_admin = FALSE, $isMoveToTrash = FALSE)
+	function deleteComment($comment_srl, $is_admin = FALSE, $isMoveToTrash = FALSE, $childs = null)
 	{
 		// create the comment model object
 		$oCommentModel = getModel('comment');
@@ -963,7 +1005,10 @@ class commentController extends comment
 		}
 
 		// check if child comment exists on the comment
-		$childs = $oCommentModel->getChildComments($comment_srl);
+		if(!$childs)
+		{
+			$childs = $oCommentModel->getChildComments($comment_srl);
+		}
 		if(count($childs) > 0)
 		{
 			$deleteAllComment = TRUE;
@@ -1054,17 +1099,9 @@ class commentController extends comment
 		}
 
 		// call a trigger (after)
-		if($output->toBool())
-		{
-			$comment->isMoveToTrash = $isMoveToTrash;
-			$trigger_output = ModuleHandler::triggerCall('comment.deleteComment', 'after', $comment);
-			if(!$trigger_output->toBool())
-			{
-				$oDB->rollback();
-				return $trigger_output;
-			}
-			unset($comment->isMoveToTrash);
-		}
+		$comment->isMoveToTrash = $isMoveToTrash;
+		ModuleHandler::triggerCall('comment.deleteComment', 'after', $comment);
+		unset($comment->isMoveToTrash);
 
 		if(!$isMoveToTrash)
 		{
@@ -1144,11 +1181,7 @@ class commentController extends comment
 				}
 
 				// call a trigger (after)
-				$output = ModuleHandler::triggerCall('comment.deleteComment', 'after', $comment);
-				if(!$output->toBool())
-				{
-					continue;
-				}
+				ModuleHandler::triggerCall('comment.deleteComment', 'after', $comment);
 			}
 		}
 
@@ -1227,7 +1260,7 @@ class commentController extends comment
 		// invalid vote if both ip addresses between author's and the current user are same.
 		if($oComment->get('ipaddress') == $_SERVER['REMOTE_ADDR'])
 		{
-			$_SESSION['voted_comment'][$comment_srl] = TRUE;
+			$_SESSION['voted_comment'][$comment_srl] = false;
 			return new Object(-1, $failed_voted);
 		}
 
@@ -1241,7 +1274,7 @@ class commentController extends comment
 			// session registered if the author information matches to the current logged-in user's.
 			if($member_srl && $member_srl == $oComment->get('member_srl'))
 			{
-				$_SESSION['voted_comment'][$comment_srl] = TRUE;
+				$_SESSION['voted_comment'][$comment_srl] = false;
 				return new Object(-1, $failed_voted);
 			}
 		}
@@ -1264,7 +1297,7 @@ class commentController extends comment
 		// session registered if log info contains recommendation vote log.
 		if($output->data->count)
 		{
-			$_SESSION['voted_comment'][$comment_srl] = TRUE;
+			$_SESSION['voted_comment'][$comment_srl] = false;
 			return new Object(-1, $failed_voted);
 		}
 
@@ -1299,13 +1332,8 @@ class commentController extends comment
 		$obj->point = $point;
 		$obj->before_point = ($point < 0) ? $oComment->get('blamed_count') : $oComment->get('voted_count');
 		$obj->after_point = ($point < 0) ? $args->blamed_count : $args->voted_count;
-		$trigger_output = ModuleHandler::triggerCall('comment.updateVotedCount', 'after', $obj);
-		if(!$trigger_output->toBool())
-		{
-			$oDB->rollback();
-			return $trigger_output;
-		}
-
+		
+		ModuleHandler::triggerCall('comment.updateVotedCount', 'after', $obj);
 		$oDB->commit();
 
 		// Return the result
@@ -1437,12 +1465,7 @@ class commentController extends comment
 
 		// Call a trigger (after)
 		$trigger_obj->declared_count = $declared_count + 1;
-		$trigger_output = ModuleHandler::triggerCall('comment.declaredComment', 'after', $trigger_obj);
-		if(!$trigger_output->toBool())
-		{
-			$oDB->rollback();
-			return $trigger_output;
-		}
+		ModuleHandler::triggerCall('comment.declaredComment', 'after', $trigger_obj);
 
 		// commit
 		$oDB->commit();

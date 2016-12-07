@@ -134,14 +134,31 @@ class TemplateHandler
 
 		$source_template_mtime = filemtime($this->file);
 		$latest_mtime = $source_template_mtime > $this->handler_mtime ? $source_template_mtime : $this->handler_mtime;
-
-		// get cached file
+		
+		// make compiled file
 		if(!file_exists($this->compiled_file) || filemtime($this->compiled_file) < $latest_mtime)
 		{
-			FileHandler::writeFile($this->compiled_file, $this->parse());
+			$buff = $this->parse();
+			if(Rhymix\Framework\Storage::write($this->compiled_file, $buff) === false)
+			{
+				$tmpfilename = tempnam(sys_get_temp_dir(), 'rx-compiled');
+				if($tmpfilename === false || Rhymix\Framework\Storage::write($tmpfilename, $buff) === false)
+				{
+					return 'Fatal Error : Cannot create temporary file. Please check permissions.';
+				}
+				
+				$this->compiled_file = $tmpfilename;
+			}
 		}
-
+		
+		Rhymix\Framework\Debug::addFilenameAlias($this->file, $this->compiled_file);
 		$output = $this->_fetch($this->compiled_file);
+		
+		// delete tmpfile
+		if(isset($tmpfilename))
+		{
+			Rhymix\Framework\Storage::delete($tmpfilename);
+		}
 
 		if($__templatehandler_root_tpl == $this->file)
 		{
@@ -320,7 +337,7 @@ class TemplateHandler
 
 	/**
 	 * fetch using ob_* function
-	 * @param string $buff if buff is not null, eval it instead of including compiled template file
+	 * @param string $filename compiled template file name
 	 * @return string
 	 */
 	private function _fetch($filename)
@@ -672,6 +689,8 @@ class TemplateHandler
 							}
 							break;
 						case 'css':
+						case 'less':
+						case 'scss':
 							if($doUnload)
 							{
 								$result = "Context::unloadFile('{$attr['target']}','{$attr['targetie']}','{$attr['media']}');";
@@ -679,7 +698,7 @@ class TemplateHandler
 							else
 							{
 								$metafile = $attr['target'];
-								$result = "\$__tmp=array('{$attr['target']}','{$attr['media']}','{$attr['targetie']}','{$attr['index']}');Context::loadFile(\$__tmp);unset(\$__tmp);";
+								$result = "\$__tmp=array('{$attr['target']}','{$attr['media']}','{$attr['targetie']}','{$attr['index']}'," . ($attr['vars'] ? self::_replaceVar($attr['vars']) : 'array()') . ");Context::loadFile(\$__tmp);unset(\$__tmp);";
 							}
 							break;
 					}

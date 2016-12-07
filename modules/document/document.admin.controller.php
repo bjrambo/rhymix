@@ -41,7 +41,7 @@ class documentAdminController extends document
 			$oDocumentController->deleteDocument($document_srl, true);
 		}
 
-		$this->setMessage(sprintf(Context::getLang('msg_checked_document_is_deleted'), $document_count) );
+		$this->setMessage(sprintf(lang('msg_checked_document_is_deleted'), $document_count) );
 	}
 
 	/**
@@ -145,11 +145,20 @@ class documentAdminController extends document
 			$obj->module_srl = $module_srl;
 			$obj->category_srl = $category_srl;
 			$output = executeQuery('document.updateDocumentModule', $obj);
-			if(!$output->toBool()) {
+			if(!$output->toBool())
+			{
 				$oDB->rollback();
 				return $output;
 			}
-
+			else
+			{
+				$update_output = $oDocumentController->insertDocumentUpdateLog($obj);
+				if(!$update_output->toBool())
+				{
+					$oDB->rollback();
+					return $update_output;
+				}
+			}
 			//Move a module of the extra vars
 			$output = executeQuery('document.moveDocumentExtraVars', $obj);
 			if(!$output->toBool()) {
@@ -200,24 +209,16 @@ class documentAdminController extends document
 			$oDB->rollback();
 			return $output;
 		}
-		// Call a trigger (before)
-		$output = ModuleHandler::triggerCall('document.moveDocumentModule', 'after', $triggerObj);
-		if(!$output->toBool())
-		{
-			$oDB->rollback();
-			return $output;
-		}
+		
+		// Call a trigger (after)
+		ModuleHandler::triggerCall('document.moveDocumentModule', 'after', $triggerObj);
 
 		$oDB->commit();
+		
 		//remove from cache
-		$oCacheHandler = CacheHandler::getInstance('object');
-		if($oCacheHandler->isSupport())
+		foreach ($document_srl_list as $document_srl)
 		{
-			foreach($document_srl_list as $document_srl)
-			{
-				$cache_key_item = 'document_item:'. getNumberingPath($document_srl) . $document_srl;
-				$oCacheHandler->delete($cache_key_item);
-			}
+			Rhymix\Framework\Cache::delete('document_item:'. getNumberingPath($document_srl) . $document_srl);
 		}
 		return new Object();
 	}
@@ -428,12 +429,7 @@ class documentAdminController extends document
 
 		// Call a trigger (before)
 		$triggerObj->copied_srls = $copied_srls;
-		$output = ModuleHandler::triggerCall('document.copyDocumentModule', 'after', $triggerObj);
-		if(!$output->toBool())
-		{
-			$oDB->rollback();
-			return $output;
-		}
+		ModuleHandler::triggerCall('document.copyDocumentModule', 'after', $triggerObj);
 
 		$oDB->commit();
 
@@ -463,18 +459,11 @@ class documentAdminController extends document
 				$document_srl_list[] = $oDocument->document_srl;
 			}
 		}
+		
 		//remove from cache
-		$oCacheHandler = CacheHandler::getInstance('object');
-		if($oCacheHandler->isSupport())
+		foreach ($document_srl_list as $document_srl)
 		{
-			if(is_array($document_srl_list))
-			{
-				foreach($document_srl_list as $document_srl)
-				{
-					$cache_key_item = 'document_item:'. getNumberingPath($document_srl) . $document_srl;
-					$oCacheHandler->delete($cache_key_item);
-				}
-			}
+			Rhymix\Framework\Cache::delete('document_item:'. getNumberingPath($document_srl) . $document_srl);
 		}
 		return $output;
 	}
@@ -681,13 +670,7 @@ class documentAdminController extends document
 			if(!$output->toBool()) return $output;
 		}
 
-		$oCacheHandler = CacheHandler::getInstance('object', NULL, TRUE);
-		if($oCacheHandler->isSupport())
-		{
-			$object_key = 'module_document_extra_keys:'.$module_srl;
-			$cache_key = $oCacheHandler->getGroupKey('site_and_module', $object_key);
-			$oCacheHandler->delete($cache_key);
-		}
+		Rhymix\Framework\Cache::delete("site_and_module:module_document_extra_keys:$module_srl");
 	}
 
 	/**
@@ -907,15 +890,7 @@ class documentAdminController extends document
 		}
 
 		// call a trigger (after)
-		if($output->toBool())
-		{
-			$trigger_output = ModuleHandler::triggerCall('document.restoreTrash', 'after', $originObject);
-			if(!$trigger_output->toBool())
-			{
-				$oDB->rollback();
-				return $trigger_output;
-			}
-		}
+		ModuleHandler::triggerCall('document.restoreTrash', 'after', $originObject);
 
 		// commit
 		$oDB->commit();

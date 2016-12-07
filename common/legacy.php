@@ -407,9 +407,10 @@ function getFullSiteUrl()
  *
  * @return string
  */
-function getCurrentPageUrl()
+function getCurrentPageUrl($escape = true)
 {
-	return escape((RX_SSL ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+	$url = Rhymix\Framework\URL::getCurrentURL();
+	return $escape ? escape($url) : $url;
 }
 
 /**
@@ -420,7 +421,7 @@ function getCurrentPageUrl()
  */
 function isSiteID($domain)
 {
-	return preg_match('/^([a-zA-Z0-9\_]+)$/', $domain);
+	return (bool)preg_match('/^([a-zA-Z0-9\_]+)$/', $domain);
 }
 
 /**
@@ -552,7 +553,7 @@ function zdate($str, $format = 'Y-m-d H:i:s', $conversion = false)
 	}
 	
 	// convert the date format according to the language
-	if($conversion)
+	if($conversion && $format !== 'relative')
 	{
 		static $convtable = array(
 			'en' => array(
@@ -594,8 +595,8 @@ function zdate($str, $format = 'Y-m-d H:i:s', $conversion = false)
 	// change day and am/pm for each language
 	if(preg_match('/[MFAa]/', $format))
 	{
-		$unit_week = (Array)Context::getLang('unit_week');
-		$unit_meridiem = (Array)Context::getLang('unit_meridiem');
+		$unit_week = (Array)lang('unit_week');
+		$unit_meridiem = (Array)lang('unit_meridiem');
 		$result = str_replace(array('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'), $unit_week, $result);
 		$result = str_replace(array('am', 'pm', 'AM', 'PM'), $unit_meridiem, $result);
 	}
@@ -637,31 +638,17 @@ function getDisplayDateTime($timestamp = null, $format = 'YmdHis')
  */
 function getTimeGap($date, $format = 'Y.m.d')
 {
-	$gap = RX_TIME - ztime($date);
-
-	$lang_time_gap = Context::getLang('time_gap');
-	if($gap < 60 * 1.5)
+	$timestamp = ztime($date);
+	$gap = RX_TIME - $timestamp;
+	
+	if ($gap < 60 * 60 * 24)
 	{
-		$buff = sprintf($lang_time_gap['min'], round($gap / 60));
-	}
-	elseif($gap < 60 * 60)
-	{
-		$buff = sprintf($lang_time_gap['mins'], round($gap / 60));
-	}
-	elseif($gap < 60 * 60 * 1.5)
-	{
-		$buff = sprintf($lang_time_gap['hour'], round($gap / 60 / 60));
-	}
-	elseif($gap < 60 * 60 * 24)
-	{
-		$buff = sprintf($lang_time_gap['hours'], round($gap / 60 / 60));
+		return Rhymix\Framework\DateTime::getRelativeTimestamp(($gap >= 60) ? $timestamp : (RX_TIME - 60));
 	}
 	else
 	{
-		$buff = zdate($date, $format);
+		return zdate($date, $format);
 	}
-
-	return $buff;
 }
 
 /**
@@ -813,197 +800,70 @@ function url_decode($str)
 	return htmlspecialchars(utf8RawUrlDecode($str), null, 'UTF-8');
 }
 
-function purifierHtml(&$content)
-{
-	$oPurifier = Purifier::getInstance();
-	$oPurifier->purify($content);
-}
-
 /**
- * Pre-block the codes which may be hacking attempts
+ * Sanitize HTML content.
  *
- * @param string $content Taget content
+ * @param string $content Target content
  * @return string
  */
 function removeHackTag($content)
 {
-	$oEmbedFilter = EmbedFilter::getInstance();
-	$oEmbedFilter->check($content);
-
-	purifierHtml($content);
-
-	// change the specific tags to the common texts
-	$content = preg_replace('@<(\/?(?:html|body|head|title|meta|base|link|script|style|applet)(/*).*?>)@i', '&lt;$1', $content);
-
-	/**
-	 * Remove codes to abuse the admin session in src by tags of imaages and video postings
-	 * - Issue reported by Sangwon Kim
-	 */
-	$content = preg_replace_callback('@<(/?)([a-z]+[0-9]?)((?>"[^"]*"|\'[^\']*\'|[^>])*?\b(?:on[a-z]+|data|style|background|href|(?:dyn|low)?src)\s*=[\s\S]*?)(/?)($|>|<)@i', 'removeSrcHack', $content);
-
-	$content = checkXmpTag($content);
-	$content = blockWidgetCode($content);
-
-	return $content;
+	return Rhymix\Framework\Filters\HTMLFilter::clean($content);
 }
 
 /**
- * blocking widget code
+ * HTMLPurifier wrapper (Deprecated)
  *
- * @param string $content Taget content
+ * @param string &$content Target content
  * @return string
- **/
-function blockWidgetCode($content)
-{
-	$content = preg_replace('/(<(?:img|div)(?:[^>]*))(widget)(?:(=([^>]*?)>))/is', '$1blocked-widget$3', $content);
-
-	return $content;
-}
-
-/**
- * check uploaded file which may be hacking attempts
- *
- * @param string $file Taget file path
- * @return bool
  */
-function checkUploadedFile($file)
+function purifierHtml(&$content)
 {
-	return UploadFileFilter::check($file);
+	$content = Rhymix\Framework\Filters\HTMLFilter::clean($content);
 }
 
 /**
- * Check xmp tag, close it.
+ * Check xmp tag (Deprecated)
  *
  * @param string $content Target content
  * @return string
  */
 function checkXmpTag($content)
 {
-	$content = preg_replace('@<(/?)xmp.*?>@i', '<\1xmp>', $content);
-
-	if(($start_xmp = strrpos($content, '<xmp>')) !== FALSE)
-	{
-		if(($close_xmp = strrpos($content, '</xmp>')) === FALSE)
-		{
-			$content .= '</xmp>';
-		}
-		else if($close_xmp < $start_xmp)
-		{
-			$content .= '</xmp>';
-		}
-	}
-
 	return $content;
 }
 
 /**
- * Remove src hack(preg_replace_callback)
+ * Block widget code (Deprecated)
+ *
+ * @param string $content Taget content
+ * @return string
+ **/
+function blockWidgetCode($content)
+{
+	return preg_replace('/(<(?:img|div)(?:[^>]*))(widget)(?:(=([^>]*?)>))/is', '$1blocked-widget$3', $content);
+}
+
+/**
+ * Remove src hack (Deprecated)
  *
  * @param array $match
  * @return string
  */
 function removeSrcHack($match)
 {
-	$tag = strtolower($match[2]);
+	return $match[0];
+}
 
-	// xmp tag ?뺣━
-	if($tag == 'xmp')
-	{
-		return "<{$match[1]}xmp>";
-	}
-	if($match[1])
-	{
-		return $match[0];
-	}
-	if($match[4])
-	{
-		$match[4] = ' ' . $match[4];
-	}
-
-	$attrs = array();
-	if(preg_match_all('/([\w:-]+)\s*=(?:\s*(["\']))?(?(2)(.*?)\2|([^ ]+))/s', $match[3], $m))
-	{
-		foreach($m[1] as $idx => $name)
-		{
-			if(strlen($name) >= 2 && substr_compare($name, 'on', 0, 2) === 0)
-			{
-				continue;
-			}
-
-			$val = preg_replace_callback('/&#(?:x([a-fA-F0-9]+)|0*(\d+));/', function($n) {return chr($n[1] ? ('0x00' . $n[1]) : ($n[2] + 0)); }, $m[3][$idx] . $m[4][$idx]);
-			$val = preg_replace('/^\s+|[\t\n\r]+/', '', $val);
-
-			if(preg_match('/^[a-z]+script:/i', $val))
-			{
-				continue;
-			}
-
-			$attrs[$name] = $val;
-		}
-	}
-
-	//Remove ACT URL (CSRF)
-	$except_act = array('procFileDownload');
-	$block_act = array('dispMemberLogout', 'dispLayoutPreview');
-
-	$filter_arrts = array('style', 'src', 'href');
-	if($tag === 'object') array_push($filter_arrts, 'data');
-	if($tag === 'param') array_push($filter_arrts, 'value');
-
-	foreach($filter_arrts as $attr)
-	{
-		if(!isset($attrs[$attr])) continue;
-
-		$attr_value = rawurldecode($attrs[$attr]);
-		$attr_value = htmlspecialchars_decode($attr_value, ENT_COMPAT);
-		$attr_value = preg_replace('/\s+|[\t\n\r]+/', '', $attr_value);
-
-		preg_match('@(\?|&|;)act=(disp|proc)([^&]*)@i', $attr_value, $actmatch);
-		$url_action = $actmatch[2].$actmatch[3];
-
-		if(!empty($url_action) && !in_array($url_action, $except_act))
-		{
-			if($actmatch[2] == 'proc' || in_array($url_action, $block_act))
-			{
-				unset($attrs[$attr]);
-			}
-		}
-	}
-
-	if(isset($attrs['style']) && preg_match('@(?:/\*|\*/|\n|:\s*expression\s*\()@i', $attrs['style']))
-	{
-		unset($attrs['style']);
-	}
-
-	$attr = array();
-	foreach($attrs as $name => $val)
-	{
-		if($tag == 'object' || $tag == 'embed' || $tag == 'a')
-		{
-			$attribute = strtolower(trim($name));
-			if($attribute == 'data' || $attribute == 'src' || $attribute == 'href')
-			{
-				if(stripos($val, 'data:') === 0)
-				{
-					continue;
-				}
-			}
-		}
-
-		if($tag == 'img')
-		{
-			$attribute = strtolower(trim($name));
-			if(stripos($val, 'data:') === 0)
-			{
-				continue;
-			}
-		}
-		$val = str_replace('"', '&quot;', $val);
-		$attr[] = $name . "=\"{$val}\"";
-	}
-	$attr = count($attr) ? ' ' . implode(' ', $attr) : '';
-
-	return "<{$match[1]}{$tag}{$attr}{$match[4]}>";
+/**
+ * Check uploaded file (Deprecated)
+ *
+ * @param string $file Taget file path
+ * @return bool
+ */
+function checkUploadedFile($file)
+{
+	return true;
 }
 
 /**
@@ -1050,7 +910,7 @@ function getScriptPath()
  */
 function getRequestUriByServerEnviroment()
 {
-	return str_replace('<', '&lt;', $_SERVER['REQUEST_URI']);
+	return escape($_SERVER['REQUEST_URI']);
 }
 
 /**
@@ -1125,8 +985,7 @@ function json_encode2($data)
  */
 function isCrawler($agent = NULL)
 {
-	$agent = $agent ?: $_SERVER['HTTP_USER_AGENT'];
-	return (bool)preg_match('@bot|crawl|sp[iy]der|https?://|google|yahoo|slurp|yeti|daum|teoma|fish|hanrss|facebook|yandex|infoseek|askjeeves|stackrambler@i', $agent);
+	return Rhymix\Framework\UA::isRobot($agent);
 }
 
 /**
@@ -1138,29 +997,31 @@ function isCrawler($agent = NULL)
  */
 function stripEmbedTagForAdmin(&$content, $writer_member_srl)
 {
-	if(!Context::get('is_logged'))
+	if (!Context::get('is_logged'))
 	{
 		return;
 	}
-
-	$oModuleModel = getModel('module');
+	
 	$logged_info = Context::get('logged_info');
-
-	if($writer_member_srl != $logged_info->member_srl && ($logged_info->is_admin == "Y" || $oModuleModel->isSiteAdmin($logged_info)))
+	if ($logged_info->member_srl == $writer_member_srl)
 	{
-		if($writer_member_srl)
+		return;
+	}
+	
+	if ($logged_info->is_admin === 'Y' || getModel('module')->isSiteAdmin($logged_info))
+	{
+		if ($writer_member_srl)
 		{
-			$oMemberModel = getModel('member');
-			$member_info = $oMemberModel->getMemberInfoByMemberSrl($writer_member_srl);
-			if($member_info->is_admin == "Y")
+			$member_info = getModel('member')->getMemberInfoByMemberSrl($writer_member_srl);
+			if ($member_info && $member_info->is_admin === 'Y')
 			{
 				return;
 			}
 		}
-		$security_msg = "<div style='border: 1px solid #DDD; background: #FAFAFA; text-align:center; margin: 1em 0;'><p style='margin: 1em;'>" . Context::getLang('security_warning_embed') . "</p></div>";
-		$content = preg_replace('/<object[^>]+>(.*?<\/object>)?/is', $security_msg, $content);
-		$content = preg_replace('/<embed[^>]+>(\s*<\/embed>)?/is', $security_msg, $content);
-		$content = preg_replace('/<img[^>]+editor_component="multimedia_link"[^>]*>(\s*<\/img>)?/is', $security_msg, $content);
+		
+		$security_msg = '<div style="border: 1px solid #DDD; background: #FAFAFA; text-align:center; margin: 1em 0;">' .
+			'<p style="margin: 1em;">' . lang('security_warning_embed') . '</p></div>';
+		$content = Rhymix\Framework\Filters\MediaFilter::removeEmbeddedMedia($content, $security_msg);
 	}
 
 	return;
@@ -1183,42 +1044,8 @@ function requirePear()
  */
 function checkCSRF()
 {
-	// If this is not a POST request, FAIL.
-	if ($_SERVER['REQUEST_METHOD'] != 'POST')
-	{
-		return false;
-	}
-	
-	// Get the referer. If the referer is empty, PASS.
-	$referer = strval($_SERVER['HTTP_REFERER']);
-	if ($referer === '')
-	{
-		return true;
-	}
-	if (strpos($referer, 'xn--') !== false)
-	{
-		$referer = Context::decodeIdna($referer);
-	}
-	$referer_host = parse_url($referer, PHP_URL_HOST);
-	
-	// If the referer is the same domain as the current host, PASS.
-	$current_host = $_SERVER['HTTP_HOST'];
-	if (strpos($current_host, 'xn--') !== false)
-	{
-		$current_host = Context::decodeIdna($current_host);
-	}
-	if ($referer_host === $current_host)
-	{
-		return true;
-	}
-	
-	// If the referer is the same domain as the default URL, PASS.
-	$default_url = Context::getDefaultUrl();
-	if (strpos($default_url, 'xn--') !== false)
-	{
-		$default_url = Context::decodeIdna($default_url);
-	}
-	if ($referer_host === parse_url($default_url, PHP_URL_HOST))
+	// Use Rhymix Security class first.
+	if (Rhymix\Framework\Security::checkCSRF())
 	{
 		return true;
 	}

@@ -54,9 +54,9 @@ class boardAdminView extends board {
 		$this->setTemplatePath($template_path);
 
 		// install order (sorting) options
-		foreach($this->order_target as $key) $order_target[$key] = Context::getLang($key);
-		$order_target['list_order'] = Context::getLang('document_srl');
-		$order_target['update_order'] = Context::getLang('last_update');
+		foreach($this->order_target as $key) $order_target[$key] = lang($key);
+		$order_target['list_order'] = lang('document_srl');
+		$order_target['update_order'] = lang('last_update');
 		Context::set('order_target', $order_target);
 	}
 
@@ -200,8 +200,8 @@ class boardAdminView extends board {
 
 		// get the addtional setup trigger
 		// the additional setup triggers can be used in many modules
-		$output = ModuleHandler::triggerCall('module.dispAdditionSetup', 'before', $content);
-		$output = ModuleHandler::triggerCall('module.dispAdditionSetup', 'after', $content);
+		ModuleHandler::triggerCall('module.dispAdditionSetup', 'before', $content);
+		ModuleHandler::triggerCall('module.dispAdditionSetup', 'after', $content);
 		Context::set('setup_content', $content);
 
 		// setup the template file
@@ -295,7 +295,7 @@ class boardAdminView extends board {
 	 * @brief board module message
 	 **/
 	function alertMessage($message) {
-		$script =  sprintf('<script> xAddEventListener(window,"load", function() { alert("%s"); } );</script>', Context::getLang($message));
+		$script =  sprintf('<script> xAddEventListener(window,"load", function() { alert("%s"); } );</script>', lang($message));
 		Context::addHtmlHeader( $script );
 	}
 }

@@ -160,7 +160,7 @@ class boardView extends board
 		 * add extra vaiables to the search options
 		 **/
 		// use search options on the template (the search options key has been declared, based on the language selected)
-		foreach($this->search_option as $opt) $search_option[$opt] = Context::getLang($opt);
+		foreach($this->search_option as $opt) $search_option[$opt] = lang($opt);
 		$extra_keys = Context::get('extra_keys');
 		if($extra_keys)
 		{
@@ -317,7 +317,16 @@ class boardView extends board
 			else
 			{
 				// add the document title to the browser
-				Context::addBrowserTitle($oDocument->getTitleText());
+				Context::setCanonicalURL($oDocument->getPermanentUrl());
+				$seo_title = config('seo.document_title') ?: '$SITE_TITLE - $DOCUMENT_TITLE';
+				getController('module')->replaceDefinedLangCode($seo_title);
+				Context::setBrowserTitle($seo_title, array(
+					'site_title' => Context::getSiteTitle(),
+					'site_subtitle' => Context::getSiteSubtitle(),
+					'subpage_title' => $module_info->browser_title,
+					'document_title' => $oDocument->getTitleText(),
+					'page' => Context::get('page') ?: 1,
+				));
 
 				// update the document view count (if the document is not secret)
 				if(!$oDocument->isSecret() || $oDocument->isGranted())
@@ -328,10 +337,12 @@ class boardView extends board
 				// disappear the document if it is secret
 				if($oDocument->isSecret() && !$oDocument->isGranted())
 				{
-					$oDocument->add('content',Context::getLang('thisissecret'));
+					$oDocument->add('content',lang('thisissecret'));
 				}
 			}
 		}
+
+		Context::set('update_view', $this->grant->update_view);
 
 		// setup the document oject on context
 		$oDocument->add('module_srl', $this->module_srl);
@@ -430,7 +441,7 @@ class boardView extends board
 			{
 				if(!$val->isAccessible())
 				{
-					$val->add('content',Context::getLang('thisissecret'));
+					$val->add('content',lang('thisissecret'));
 				}
 			}
 		}
@@ -698,7 +709,7 @@ class boardView extends board
 			{
 				if($oDocument->get('regdate') < date('YmdHis', strtotime('-'.$this->module_info->protect_document_regdate.' day')))
 				{
-					$format =  Context::getLang('msg_protect_regdate_document');
+					$format =  lang('msg_protect_regdate_document');
 					$massage = sprintf($format, $this->module_info->protect_document_regdate);
 					return new Object(-1, $massage);
 				}
@@ -825,7 +836,7 @@ class boardView extends board
 		{
 			if($oDocument->get('regdate') < date('YmdHis', strtotime('-'.$this->module_info->protect_document_regdate.' day')))
 			{
-				$format =  Context::getLang('msg_protect_regdate_document');
+				$format =  lang('msg_protect_regdate_document');
 				$massage = sprintf($format, $this->module_info->protect_document_regdate);
 				return new Object(-1, $massage);
 			}
@@ -987,7 +998,7 @@ class boardView extends board
 		{
 			if($oComment->get('regdate') < date('YmdHis', strtotime('-'.$this->module_info->protect_document_regdate.' day')))
 			{
-				$format =  Context::getLang('msg_protect_regdate_comment');
+				$format =  lang('msg_protect_regdate_comment');
 				$massage = sprintf($format, $this->module_info->protect_document_regdate);
 				return new Object(-1, $massage);
 			}
@@ -1055,7 +1066,7 @@ class boardView extends board
 		{
 			if($oComment->get('regdate') < date('YmdHis', strtotime('-'.$this->module_info->protect_document_regdate.' day')))
 			{
-				$format =  Context::getLang('msg_protect_regdate_comment');
+				$format =  lang('msg_protect_regdate_comment');
 				$massage = sprintf($format, $this->module_info->protect_document_regdate);
 				return new Object(-1, $massage);
 			}
@@ -1134,10 +1145,50 @@ class boardView extends board
 	 **/
 	function dispBoardMessage($msg_code)
 	{
-		$msg = Context::getLang($msg_code);
-		if(!$msg) $msg = $msg_code;
-		Context::set('message', $msg);
+		Context::set('message', lang($msg_code));
+		
+		$this->setHttpStatusCode(403);
 		$this->setTemplateFile('message');
+	}
+
+	function dispBoardUpdateLog()
+	{
+		$oDocumentModel = getModel('document');
+		$document_srl = Context::get('document_srl');
+
+		if($this->grant->update_view !== true)
+		{
+			return new Object(-1, 'msg_not_permitted');
+		}
+
+		$updatelog = $oDocumentModel->getDocumentUpdateLog($document_srl);
+		Context::set('total_count', $updatelog->page_navigation->total_count);
+		Context::set('total_page', $updatelog->page_navigation->total_page);
+		Context::set('page', $updatelog->page);
+		Context::set('page_navigation', $updatelog->page_navigation);
+		Context::set('updatelog', $updatelog);
+
+		$this->setTemplateFile('update_list');
+	}
+
+	function dispBoardUpdateLogView()
+	{
+		$oDocumentModel = getModel('document');
+		$update_id = Context::get('update_id');
+
+		if($this->grant->update_view !== true)
+		{
+			return new Object(-1, 'msg_not_permitted');
+		}
+		$update_log = $oDocumentModel->getUpdateLog($update_id);
+		$extra_vars = unserialize($update_log->extra_vars);
+
+		Context::addJsFilter($this->module_path.'tpl/filter', 'update.xml');
+
+		Context::set('extra_vars', $extra_vars);
+		Context::set('update_log', $update_log);
+
+		$this->setTemplateFile('update_view');
 	}
 
 	/**
@@ -1146,8 +1197,10 @@ class boardView extends board
 	 **/
 	function alertMessage($message)
 	{
-		$script =  sprintf('<script> jQuery(function(){ alert("%s"); } );</script>', Context::getLang($message));
-		Context::addHtmlFooter( $script );
+		$script =  sprintf('<script> jQuery(function(){ alert("%s"); } );</script>', lang($message));
+		Context::addHtmlFooter($script);
+		
+		$this->setHttpStatusCode(403);
 	}
 
 }

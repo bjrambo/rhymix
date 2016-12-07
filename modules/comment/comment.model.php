@@ -77,7 +77,7 @@ class commentModel extends comment
 		ModuleHandler::triggerCall('comment.getCommentMenu', 'after', $menu_list);
 
 		if($this->grant->manager){
-			$str_confirm = Context::getLang('confirm_move');
+			$str_confirm = lang('confirm_move');
 			$url = sprintf("if(!confirm('%s')) return; var params = new Array(); params['comment_srl']='%s'; params['mid']=current_mid;params['cur_url']=current_url; exec_xml('comment', 'procCommentAdminMoveToTrash', params)", $str_confirm, $comment_srl);
 			$oCommentController->addCommentPopupMenu($url,'cmd_trash','','javascript');
 
@@ -106,7 +106,7 @@ class commentModel extends comment
 
 		for($i = 0; $i < $menus_count; $i++)
 		{
-			$menus[$i]->str = Context::getLang($menus[$i]->str);
+			$menus[$i]->str = lang($menus[$i]->str);
 		}
 
 		// get a list of final organized pop-up menus
@@ -248,14 +248,20 @@ class commentModel extends comment
 
 		//check if module is using validation system
 		$oCommentController = getController('comment');
-
 		$using_validation = $oCommentController->isModuleUsingPublishValidation($module_srl);
+		$module_info = getModel('module')->getModuleInfoByDocumentSrl($document_srl);
+		$use_comment_massage = $module_info->comment_delete_message;
+
 		if($using_validation)
 		{
 			$args->status = 1;
 		}
+		elseif($use_comment_massage == 'Y')
+		{
+			$args->status = 1;
+		}
 
-		$output = executeQuery('comment.getCommentCount', $args, NULL, 'master');
+		$output = executeQuery('comment.getCommentCount', $args, NULL);
 		$total_count = $output->data->count;
 
 		return (int) $total_count;

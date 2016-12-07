@@ -59,11 +59,7 @@ class ModuleObject extends Object
 	 * */
 	function setRedirectUrl($url = './', $output = NULL)
 	{
-		$ajaxRequestMethod = array_flip($this->ajaxRequestMethod);
-		if(!isset($ajaxRequestMethod[Context::getRequestMethod()]))
-		{
-			$this->add('redirect_url', $url);
-		}
+		$this->add('redirect_url', $url);
 
 		if($output !== NULL && is_object($output))
 		{
@@ -195,7 +191,7 @@ class ModuleObject extends Object
 			{
 				case 'root' :
 				case 'manager' :
-					$this->stop('msg_is_not_administrator');
+					$this->stop('admin.msg_is_not_administrator');
 					return;
 				case 'member' :
 					if(!$is_logged)
@@ -240,7 +236,8 @@ class ModuleObject extends Object
 
 		$this->setTemplatePath($oMessageObject->getTemplatePath());
 		$this->setTemplateFile($oMessageObject->getTemplateFile());
-
+		$this->setHttpStatusCode($oMessageObject->getHttpStatusCode());
+		
 		return $this;
 	}
 

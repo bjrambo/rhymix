@@ -206,8 +206,8 @@ class moduleAdminView extends module
 		$content = '';
 		// Call a trigger for additional settings
 		// Considering uses in the other modules, trigger name cen be publicly used
-		$output = ModuleHandler::triggerCall('module.dispAdditionSetup', 'before', $content);
-		$output = ModuleHandler::triggerCall('module.dispAdditionSetup', 'after', $content);
+		ModuleHandler::triggerCall('module.dispAdditionSetup', 'before', $content);
+		ModuleHandler::triggerCall('module.dispAdditionSetup', 'after', $content);
 		Context::set('setup_content', $content);
 		// Set the layout to be pop-up
 		$this->setLayoutPath('./common/tpl');
@@ -232,7 +232,7 @@ class moduleAdminView extends module
 		$xml_info = $oModuleModel->getModuleActionXml($module_info->module);
 		$source_grant_list = $xml_info->grant;
 		// Grant virtual permissions for access and manager
-		$grant_list->access->title = Context::getLang('grant_access');
+		$grant_list->access->title = lang('grant_access');
 		$grant_list->access->default = 'guest';
 		if(count($source_grant_list))
 		{
@@ -243,7 +243,7 @@ class moduleAdminView extends module
 				$grant_list->{$key} = $val;
 			}
 		}
-		$grant_list->manager->title = Context::getLang('grant_manager');
+		$grant_list->manager->title = lang('grant_manager');
 		$grant_list->manager->default = 'manager';
 		Context::set('grant_list', $grant_list);
 		// Get a list of groups

@@ -366,7 +366,7 @@ class menuAdminModel extends menu
 
 			if($module_name == 'page')
 			{
-				$pageTypeName = Context::getLang('page_type_name');
+				$pageTypeName = lang('page_type_name');
 				$module->title = $pageTypeName['ARTICLE'];
 				$allModules['ARTICLE'] = $module;
 				$wModuleInfo = clone $module;
@@ -413,8 +413,7 @@ class menuAdminModel extends menu
 		}
 
 		// after trigger
-		$output = ModuleHandler::triggerCall('menu.getModuleListInSitemap', 'after', $moduleList);
-		if(!$output->toBool()) return $output;
+		ModuleHandler::triggerCall('menu.getModuleListInSitemap', 'after', $moduleList);
 
 		$localModuleList = array_unique($moduleList);
 
@@ -451,7 +450,7 @@ class menuAdminModel extends menu
 
 				if($value == 'page')
 				{
-					$pageTypeName = Context::getLang('page_type_name');
+					$pageTypeName = lang('page_type_name');
 					$moduleInfo->title = $pageTypeName['ARTICLE'];
 					$moduleInfoList['ARTICLE'] = $moduleInfo;
 					$wModuleInfo = clone $moduleInfo;
