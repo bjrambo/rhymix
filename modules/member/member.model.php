@@ -137,105 +137,114 @@ class memberModel extends member
 		$member_srl = Context::get('target_srl');
 		$mid = Context::get('cur_mid');
 		$logged_info = Context::get('logged_info');
-		$act = Context::get('cur_act');
 		// When click user's own nickname
-		if($member_srl == $logged_info->member_srl) $member_info = $logged_info;
-		// When click other's nickname
-		else $member_info = $this->getMemberInfoByMemberSrl($member_srl);
-
-		$member_srl = $member_info->member_srl;
-		if(!$member_srl) return;
-		// List variables
-		$user_id = $member_info->user_id;
-		$user_name = $member_info->user_name;
-
-		ModuleHandler::triggerCall('member.getMemberMenu', 'before', $member_info);
-
-		$oMemberController = getController('member');
-		// Display member information (Don't display to non-logged user)
-		if($logged_info->member_srl)
+		if($member_srl == $logged_info->member_srl)
 		{
-			$url = getUrl('','mid',$mid,'act','dispMemberInfo','member_srl',$member_srl);
-			$oMemberController->addMemberPopupMenu($url,'cmd_view_member_info',$icon_path,'self');
+			$member_info = $logged_info;
 		}
-
 		// When click other's nickname
-		if($member_srl != $logged_info->member_srl && $logged_info->member_srl)
+		else
 		{
-			// Get email config
-			foreach($this->module_config->signupForm as $field)
-			{
-				if($field->name == 'email_address')
-				{
-					$email_config = $field;
-					break;
-				}
-			}
-
-			// Send an email only if email address is public
-			if($email_config->isPublic == 'Y' && $member_info->email_address)
-			{
-				$oCommunicationModel = getModel('communication');
-				if($logged_info->is_admin == 'Y' || $oCommunicationModel->isFriend($member_info->member_srl))
-				{
-					$url = 'mailto:'.escape($member_info->email_address);
-					$oMemberController->addMemberPopupMenu($url,'cmd_send_email',$icon_path);
-				}
-			}
+			$member_info = $this->getMemberInfoByMemberSrl($member_srl);
 		}
 		
-		// Check if homepage and blog are public
-		$homepage_is_public = false;
-		$blog_is_public = false;
-		if ($logged_info->is_admin === 'Y')
+		$oMemberController = getController('member');
+
+		$member_srl = $member_info->member_srl;
+		if(!$member_srl)
 		{
-			$homepage_is_public = true;
-			$blog_is_public = true;
+			$oMemberController->addMemberPopupMenu('#','탈퇴한 회원입니다.','','notwork');
 		}
 		else
 		{
-			foreach ($this->module_config->signupForm as $field)
+			ModuleHandler::triggerCall('member.getMemberMenu', 'before', $member_info);
+
+			// Display member information (Don't display to non-logged user)
+			if($logged_info->member_srl)
 			{
-				if ($field->name === 'homepage' && $field->isPublic === 'Y')
+				$url = getUrl('','mid',$mid,'act','dispMemberInfo','member_srl',$member_srl);
+				$oMemberController->addMemberPopupMenu($url,'cmd_view_member_info',$icon_path,'self');
+			}
+
+			// When click other's nickname
+			if($member_srl != $logged_info->member_srl && $logged_info->member_srl)
+			{
+				// Get email config
+				foreach($this->module_config->signupForm as $field)
 				{
-					$homepage_is_public = true;
+					if($field->name == 'email_address')
+					{
+						$email_config = $field;
+						break;
+					}
 				}
-				if ($field->name === 'blog' && $field->isPublic === 'Y')
+
+				// Send an email only if email address is public
+				if($email_config->isPublic == 'Y' && $member_info->email_address)
 				{
-					$blog_is_public = true;
+					$oCommunicationModel = getModel('communication');
+					if($logged_info->is_admin == 'Y' || $oCommunicationModel->isFriend($member_info->member_srl))
+					{
+						$url = 'mailto:'.escape($member_info->email_address);
+						$oMemberController->addMemberPopupMenu($url,'cmd_send_email',$icon_path);
+					}
 				}
 			}
-		}
-		
-		// View homepage info
-		if($member_info->homepage && $homepage_is_public)
-		{
-			$oMemberController->addMemberPopupMenu(escape($member_info->homepage, false), 'homepage', '', 'blank');
-		}
-		
-		// View blog info
-		if($member_info->blog && $blog_is_public)
-		{
-			$oMemberController->addMemberPopupMenu(escape($member_info->blog, false), 'blog', '', 'blank');
-		}
-		
-		// Call a trigger (after)
-		ModuleHandler::triggerCall('member.getMemberMenu', 'after', $member_info);
-		// Display a menu for editting member info to a top administrator
-		if($logged_info->is_admin == 'Y')
-		{
-			$url = getUrl('','module','admin','act','dispMemberAdminInsert','member_srl',$member_srl);
-			$oMemberController->addMemberPopupMenu($url,'cmd_manage_member_info',$icon_path,'MemberModifyInfo');
 
-			$url = getUrl('','module','member','act','dispMemberSpammer','member_srl',$member_srl,'module_srl',0);
-			$oMemberController->addMemberPopupMenu($url,'cmd_spammer',$icon_path,'popup');
-			
-			$url = getUrl('','module','admin','act','dispDocumentAdminList','search_target','member_srl','search_keyword',$member_srl);
-			$oMemberController->addMemberPopupMenu($url,'cmd_trace_document',$icon_path,'TraceMemberDocument');
+			// Check if homepage and blog are public
+			$homepage_is_public = false;
+			$blog_is_public = false;
+			if ($logged_info->is_admin === 'Y')
+			{
+				$homepage_is_public = true;
+				$blog_is_public = true;
+			}
+			else
+			{
+				foreach ($this->module_config->signupForm as $field)
+				{
+					if ($field->name === 'homepage' && $field->isPublic === 'Y')
+					{
+						$homepage_is_public = true;
+					}
+					if ($field->name === 'blog' && $field->isPublic === 'Y')
+					{
+						$blog_is_public = true;
+					}
+				}
+			}
 
-			$url = getUrl('','module','admin','act','dispCommentAdminList','search_target','member_srl','search_keyword',$member_srl);
-			$oMemberController->addMemberPopupMenu($url,'cmd_trace_comment',$icon_path,'TraceMemberComment');
+			// View homepage info
+			if($member_info->homepage && $homepage_is_public)
+			{
+				$oMemberController->addMemberPopupMenu(escape($member_info->homepage, false), 'homepage', '', 'blank');
+			}
+
+			// View blog info
+			if($member_info->blog && $blog_is_public)
+			{
+				$oMemberController->addMemberPopupMenu(escape($member_info->blog, false), 'blog', '', 'blank');
+			}
+
+			// Call a trigger (after)
+			ModuleHandler::triggerCall('member.getMemberMenu', 'after', $member_info);
+			// Display a menu for editting member info to a top administrator
+			if($logged_info->is_admin == 'Y')
+			{
+				$url = getUrl('','module','admin','act','dispMemberAdminInsert','member_srl',$member_srl);
+				$oMemberController->addMemberPopupMenu($url,'cmd_manage_member_info',$icon_path,'MemberModifyInfo');
+
+				$url = getUrl('','module','member','act','dispMemberSpammer','member_srl',$member_srl,'module_srl',0);
+				$oMemberController->addMemberPopupMenu($url,'cmd_spammer',$icon_path,'popup');
+
+				$url = getUrl('','module','admin','act','dispDocumentAdminList','search_target','member_srl','search_keyword',$member_srl);
+				$oMemberController->addMemberPopupMenu($url,'cmd_trace_document',$icon_path,'TraceMemberDocument');
+
+				$url = getUrl('','module','admin','act','dispCommentAdminList','search_target','member_srl','search_keyword',$member_srl);
+				$oMemberController->addMemberPopupMenu($url,'cmd_trace_comment',$icon_path,'TraceMemberComment');
+			}
 		}
+
 		// Change a language of pop-up menu
 		$menus = Context::get('member_popup_menu_list');
 		$menus_count = count($menus);

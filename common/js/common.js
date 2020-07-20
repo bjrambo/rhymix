@@ -220,6 +220,10 @@
 										click_str = 'onclick="'+url+'; return false; "';
 										url='#';
 									break;
+								case "notwork" :
+										click_str = "";
+										url = "#";
+									break;
 								default :
 										click_str = 'target="_blank"';
 									break;
