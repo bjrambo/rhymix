@@ -2091,23 +2091,22 @@ class memberController extends member
 		}
 		
 		// Fetch autologin information from DB.
-		$args = new stdClass;
-		$args->autologin_key = $autologin_key;
-		$output = executeQuery('member.getAutologin', $args);
-		if (!$output->toBool() || !$output->data)
+		$autologin_data = memberModel::getAutoLoginInfoByAutoLoginKey($autologin_key);
+		if (!$autologin_data)
 		{
 			return false;
 		}
-		if (is_array($output->data))
+		
+		if (is_array($autologin_data))
 		{
-			$output->data = array_first($output->data);
+			$autologin_data = array_first($autologin_data);
 		}
 		
 		// Hash the security key.
 		$valid_security_keys = array(base64_encode(hash_hmac('sha256', $security_key, $autologin_key, true)));
 		
 		// Check the security key.
-		if (!in_array($output->data->security_key, $valid_security_keys) || !$output->data->member_srl)
+		if (!in_array($autologin_data->security_key, $valid_security_keys) || !$autologin_data->member_srl)
 		{
 			$args = new stdClass;
 			$args->autologin_key = $autologin_key;
@@ -2127,11 +2126,11 @@ class memberController extends member
 		}
 		
 		// Update the last login time.
-		executeQuery('member.updateLastLogin', (object)['member_srl' => $output->data->member_srl]);
-		self::clearMemberCache($output->data->member_srl);
+		executeQuery('member.updateLastLogin', (object)['member_srl' => $autologin_data->member_srl]);
+		self::clearMemberCache($autologin_data->member_srl);
 		
 		// Return the member_srl.
-		return intval($output->data->member_srl);
+		return intval($autologin_data->member_srl);
 	}
 
 	/**

@@ -1422,6 +1422,25 @@ class memberModel extends member
 		
 		return $output;
 	}
+	
+	/**
+	 * 자동로그인키로 채크하여 자동로그인 정보를 가져온다.
+	 * @param $autologin_key
+	 * @return mixed
+	 */
+	public static function getAutoLoginInfoByAutoLoginKey($autologin_key)
+	{
+		$args = new stdClass;
+		$args->autologin_key = $autologin_key;
+		$output = executeQuery('member.getAutologin', $args);
+		
+		if (!$output->toBool() || !$output->data)
+		{
+			return false;
+		}
+		
+		return $output->data;
+	}
 }
 /* End of file member.model.php */
 /* Location: ./modules/member/member.model.php */

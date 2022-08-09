@@ -214,6 +214,13 @@ class Session
 			$must_refresh = false;
 		}
 		
+		$autologin_data = \memberModel::getAutoLoginInfoByAutoLoginKey(self::$_autologin_key);
+		if (isset(self::$_autologin_key) && !$autologin_data && )
+		{
+			$must_refresh = true;
+			self::logout();
+		}
+		
 		// If this is a new session, remove conflicting cookies.
 		// This is temporary code to take care of a bug that was in develop branch for a few days in March 2020.
 		// It is not needed if you never updated to a buggy develop branch.
