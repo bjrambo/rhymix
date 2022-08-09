@@ -215,7 +215,7 @@ class Session
 		}
 		
 		$autologin_data = \memberModel::getAutoLoginInfoByAutoLoginKey(self::$_autologin_key);
-		if (isset(self::$_autologin_key) && !$autologin_data && )
+		if (isset(self::$_autologin_key) && !$autologin_data)
 		{
 			$must_refresh = true;
 			self::logout();
